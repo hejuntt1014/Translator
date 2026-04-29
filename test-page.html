@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiniMax Translator Test Page</title>
+    <style>
+      body {
+        font: 16px/1.7 "Segoe UI", Arial, sans-serif;
+        margin: 40px auto;
+        max-width: 780px;
+        padding: 0 18px 80px;
+        color: #0f172a;
+      }
+
+      pre {
+        overflow: auto;
+        padding: 16px;
+        border-radius: 12px;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+
+      code {
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: #e2e8f0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>MiniMax Translator Test Page</h1>
+    <p>
+      This paragraph contains ordinary prose and should be translated into Chinese with a bilingual block beneath it.
+    </p>
+    <p>
+      Inline code such as <code>fetch("/api/items")</code> should remain untouched while the surrounding sentence is translated.
+    </p>
+    <ul>
+      <li>Translate list items clearly.</li>
+      <li>Keep product names like Edge, Anthropic, and MiniMax-M2.7 as needed.</li>
+      <li>Do not over-translate URLs such as https://platform.minimaxi.com/ .</li>
+    </ul>
+    <blockquote>
+      Good translation should preserve tone, structure, and practical meaning instead of only replacing words.
+    </blockquote>
+    <pre><code>async function loadItems() {
+  const response = await fetch("/api/items");
+  return response.json();
+}</code></pre>
+  </body>
+</html>

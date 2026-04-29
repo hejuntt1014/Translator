@@ -1,0 +1,110 @@
+/* bilingual: show translation via ::after, zero DOM insertion */
+[data-pt-bi]::after {
+  content: attr(data-pt-bi);
+  display: block;
+  margin-top: 2px;
+  color: #2563eb;
+  font-size: 0.94em;
+  line-height: 1.55;
+}
+
+[data-pt-original-hidden] {
+  display: none !important;
+}
+
+.pt-inserted-translation {
+  display: block;
+  margin-top: 2px;
+  color: #2563eb;
+  font-size: 0.94em;
+  line-height: 1.55;
+}
+
+/* ── floating control panel (top-right) ── */
+
+.page-translator-controls {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2147483647;
+  width: 200px;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.97);
+  color: #0f172a;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(10px);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+}
+
+.page-translator-controls[hidden] {
+  display: none !important;
+}
+
+.page-translator-controls__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.page-translator-controls__title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.page-translator-controls__close {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 22px;
+  text-align: center;
+}
+
+.page-translator-controls__close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.page-translator-controls__status {
+  color: #475569;
+  line-height: 1.4;
+}
+
+.page-translator-controls__progress {
+  margin-top: 2px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.page-translator-controls__actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.page-translator-controls__actions button {
+  flex: 1;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 0;
+}
+
+.page-translator-controls__actions button[data-active] {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  color: #2563eb;
+}

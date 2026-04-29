@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Translator Settings</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main class="options-page">
+      <section class="card">
+        <h1>AI 翻译插件设置</h1>
+
+        <label class="field">
+          <span>API Key</span>
+          <input id="apiKey" type="password" placeholder="输入 API Key">
+        </label>
+
+        <label class="field">
+          <span>API Base URL</span>
+          <input id="apiBaseUrl" type="url" placeholder="https://api.cerebras.ai/v1">
+          <small>OpenAI 兼容的 /chat/completions 端点（不含 /chat/completions 后缀）</small>
+        </label>
+
+        <label class="field">
+          <span>模型</span>
+          <input id="model" type="text" placeholder="qwen-3-235b-a22b-instruct-2507">
+        </label>
+
+        <label class="field">
+          <span>默认目标语言</span>
+          <select id="targetLanguage">
+            <option value="zh-CN">简体中文</option>
+            <option value="zh-TW">繁体中文</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>默认显示模式</span>
+          <select id="displayMode">
+            <option value="bilingual">双语对照</option>
+            <option value="translated">仅显示译文</option>
+            <option value="original">仅显示原文</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>翻译显示方案</span>
+          <select id="renderMode">
+            <option value="css-pseudo">CSS 伪元素（双语零 DOM 改动）</option>
+            <option value="text-node">文本节点替换（尽量保留 HTML 结构）</option>
+            <option value="insert-block">段落后插入译文块（最稳定）</option>
+          </select>
+          <small>切换后对下一次翻译生效。</small>
+        </label>
+
+        <label class="field">
+          <span>单批字符上限</span>
+          <input id="segmentCharLimit" type="number" min="500" step="100" placeholder="5000">
+        </label>
+
+        <label class="field">
+          <span>每批最多段落数</span>
+          <input id="maxSegmentsPerRequest" type="number" min="1" step="1" placeholder="24">
+        </label>
+
+        <label class="field">
+          <span>批次间隔（毫秒）</span>
+          <input id="requestDelayMs" type="number" min="0" step="50" placeholder="100">
+          <small>用于避免触发模型端限流，默认 100ms。</small>
+        </label>
+
+        <label class="field">
+          <span>思考模式（DeepSeek 等）</span>
+          <select id="thinkingMode">
+            <option value="omit">不发送 thinking 字段（其他 API）</option>
+            <option value="enabled">思考模式 (enabled)</option>
+            <option value="disabled">非思考模式 (disabled)</option>
+          </select>
+          <small>DeepSeek v4 API：选「非思考模式」可避免长推理与额外延迟。</small>
+        </label>
+
+        <div class="actions">
+          <button id="saveButton" class="primary" type="button">保存设置</button>
+          <button id="testButton" type="button">测试 API</button>
+          <button id="shortcutsButton" type="button">快捷键设置</button>
+        </div>
+
+        <p class="status">提示：Ctrl+T 这类浏览器保留快捷键不能分配给扩展，可在快捷键页改成别的组合。</p>
+
+        <p id="status" class="status">填写配置后保存。</p>
+      </section>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>
