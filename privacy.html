@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Page Translator 隐私说明</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main class="options-page">
+      <article class="card">
+        <h1>隐私说明</h1>
+
+        <section class="notice">
+          <h2>数据如何使用</h2>
+          <p>当你主动触发翻译时，扩展会读取当前网页中可见的文本内容，并发送到你在设置页配置的 OpenAI 兼容 API 服务，用于生成译文。</p>
+          <p>扩展不会出售、共享或上传你的 API Key。API Key 保存在本机浏览器扩展存储中，仅用于向你配置的 API 服务发起请求。</p>
+        </section>
+
+        <section class="notice">
+          <h2>本地缓存</h2>
+          <p>默认不保存译文缓存。若你在设置页启用本地译文缓存，译文会保存在本机浏览器扩展存储中，以减少重复 API 请求。</p>
+          <p>你可以在扩展设置页关闭缓存，或在浏览器扩展详情/站点数据设置中清除扩展存储。</p>
+        </section>
+
+        <section class="notice">
+          <h2>第三方 API</h2>
+          <p>请只配置你信任的 HTTPS API 服务。第三方 API 服务如何处理请求内容，取决于该服务自己的隐私政策和服务条款。</p>
+        </section>
+      </article>
+    </main>
+  </body>
+</html>

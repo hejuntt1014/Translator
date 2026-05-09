@@ -18,6 +18,7 @@
     targetLanguage: "zh-CN",
     displayMode: "bilingual",
     renderMode: "css-pseudo",
+    cacheEnabled: false,
     segmentCharLimit: 5000,
     maxSegmentsPerRequest: 24,
     requestDelayMs: 100,
@@ -39,7 +40,40 @@
 
   function normalizeBaseUrl(value) {
     const raw = String(value || DEFAULT_SETTINGS.apiBaseUrl).trim();
-    return raw.replace(/\/+$/, "");
+    return raw.replace(/\/chat\/completions\/?$/i, "").replace(/\/+$/, "");
+  }
+
+  function isLocalHttpHost(hostname) {
+    const host = String(hostname || "").toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "::1";
+  }
+
+  function validateApiBaseUrl(value) {
+    const normalized = normalizeBaseUrl(value);
+    let parsed;
+    try {
+      parsed = new URL(normalized);
+    } catch (_) {
+      throw new Error("API Base URL 格式无效。");
+    }
+
+    if (parsed.username || parsed.password) {
+      throw new Error("API Base URL 不应包含用户名或密码。");
+    }
+
+    if (parsed.search || parsed.hash) {
+      throw new Error("API Base URL 不应包含查询参数或片段。");
+    }
+
+    if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && isLocalHttpHost(parsed.hostname))) {
+      throw new Error("API Base URL 必须使用 HTTPS；仅 localhost/127.0.0.1 允许 HTTP。");
+    }
+
+    return normalized;
+  }
+
+  function getChatCompletionsUrl(value) {
+    return `${validateApiBaseUrl(value)}/chat/completions`;
   }
 
   function hashString(input) {
@@ -146,6 +180,8 @@
     mergeSettings,
     getLanguageLabel,
     normalizeBaseUrl,
+    validateApiBaseUrl,
+    getChatCompletionsUrl,
     hashString,
     createCacheKey,
     buildSegmentBatches,

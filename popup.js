@@ -10,19 +10,27 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 translateButton.addEventListener("click", async () => {
   const overrideSettings = { targetLanguage: targetLanguageSelect.value };
-  await chrome.storage.local.set(overrideSettings);
-  setStatus("已发送翻译请求...");
-  const r = await chrome.runtime.sendMessage({ type: "POPUP_TRANSLATE_ACTIVE_TAB", overrideSettings });
-  if (!r?.ok) {
-    setStatus(`失败：${r?.error || "未知错误"}`);
-    return;
+  translateButton.disabled = true;
+  try {
+    await chrome.storage.local.set(overrideSettings);
+    setStatus("已发送翻译请求...");
+    const r = await chrome.runtime.sendMessage({ type: "POPUP_TRANSLATE_ACTIVE_TAB", overrideSettings });
+    if (!r?.ok) {
+      setStatus(`失败：${r?.error || "未知错误"}`);
+      return;
+    }
+    await refreshState();
+  } catch (error) {
+    setStatus(`失败：${error.message || "未知错误"}`);
+  } finally {
+    translateButton.disabled = false;
   }
-  await refreshState();
 });
 
 document.querySelectorAll(".mode-actions button[data-mode]").forEach((btn) => {
   btn.addEventListener("click", async () => {
     const displayMode = btn.dataset.mode;
+    await chrome.storage.local.set({ displayMode });
     const tab = await getActiveTab();
     if (tab?.id) {
       await chrome.tabs.sendMessage(tab.id, { type: "SET_DISPLAY_MODE", displayMode }).catch(() => {});
@@ -32,12 +40,16 @@ document.querySelectorAll(".mode-actions button[data-mode]").forEach((btn) => {
 });
 
 document.getElementById("openOptionsButton").addEventListener("click", () => {
-  chrome.runtime.openOptionsPage();
+  chrome.runtime.openOptionsPage().catch((error) => setStatus(`打开设置失败：${error.message}`));
 });
 
 document.getElementById("openShortcutsButton").addEventListener("click", async () => {
   setStatus("浏览器保留快捷键如 Ctrl+T 不能分配给扩展。");
-  await chrome.runtime.sendMessage({ type: "OPEN_SHORTCUTS" });
+  try {
+    await chrome.runtime.sendMessage({ type: "OPEN_SHORTCUTS" });
+  } catch (error) {
+    setStatus(`打开快捷键页失败：${error.message}`);
+  }
 });
 
 async function refreshState() {

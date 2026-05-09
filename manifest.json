@@ -1,17 +1,14 @@
 {
   "manifest_version": 3,
   "name": "AI Page Translator",
-  "version": "0.2.0",
-  "description": "Translate web pages using Cerebras / OpenAI-compatible APIs.",
+  "version": "0.2.2",
+  "description": "Translate page text with a user-configured OpenAI-compatible API.",
   "permissions": [
-    "activeTab",
     "contextMenus",
     "scripting",
-    "storage",
-    "tabs"
+    "storage"
   ],
   "host_permissions": [
-    "file://*/*",
     "http://*/*",
     "https://*/*"
   ],
@@ -26,7 +23,6 @@
   "content_scripts": [
     {
       "matches": [
-        "file://*/*",
         "http://*/*",
         "https://*/*"
       ],

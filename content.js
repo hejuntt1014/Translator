@@ -152,6 +152,10 @@
   }
 
   async function hydrateFromCache(blocks, settings) {
+    if (!settings.cacheEnabled) {
+      return blocks.map((block) => ({ id: block.id, text: block.text }));
+    }
+
     const keyById = new Map();
     blocks.forEach((block) => {
       const key = PageTranslatorCore.createCacheKey(
@@ -251,6 +255,8 @@
   }
 
   async function persistCache(segments, translations, settings) {
+    if (!settings.cacheEnabled) return;
+
     const payload = {};
     segments.forEach((segment) => {
       const block = state.blockMap.get(segment.id);

@@ -13,7 +13,7 @@ chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({
       id: "translate-page",
       title: "翻译当前页面",
-      contexts: ["page", "frame", "selection"]
+      contexts: ["page"]
     });
   });
 });
@@ -43,7 +43,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   if (message.type === "OPEN_SHORTCUTS") {
-    chrome.tabs.create({ url: "chrome://extensions/shortcuts" })
+    openShortcutsPage()
       .then(() => sendResponse({ ok: true }))
       .catch((e) => sendResponse({ ok: false, error: e.message }));
     return true;
@@ -81,6 +81,14 @@ async function getActiveTab() {
   return tabs[0] || null;
 }
 
+async function openShortcutsPage() {
+  try {
+    await chrome.tabs.create({ url: "edge://extensions/shortcuts" });
+  } catch (_) {
+    await chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
+  }
+}
+
 async function safeSendMessage(tabId, message) {
   try {
     await chrome.tabs.sendMessage(tabId, message);
@@ -112,8 +120,8 @@ async function handlePopupTranslate(message) {
 async function ensureContentScriptReady(tabId) {
   const tab = await chrome.tabs.get(tabId);
   const url = String(tab.url || "");
-  if (!/^(https?:|file:)/i.test(url)) {
-    return { ok: false, error: "当前页面无法翻译（浏览器内部页面）。" };
+  if (url && !/^https?:/i.test(url)) {
+    return { ok: false, error: "当前页面无法翻译（浏览器内部页面或本地文件）。" };
   }
   const existing = await safeSendMessage(tabId, { type: "GET_PAGE_TRANSLATION_STATE" });
   if (existing) return { ok: true };
@@ -125,8 +133,9 @@ async function ensureContentScriptReady(tabId) {
     });
   } catch (error) {
     const m = String(error.message || "");
-    if (url.startsWith("file:"))
-      return { ok: false, error: "本地文件需在扩展详情中开启「允许访问文件网址」。" };
+    if (m.includes("Cannot access") || m.includes("chrome://") || m.includes("edge://")) {
+      return { ok: false, error: "当前页面无法翻译（浏览器内部页面或本地文件）。" };
+    }
     return { ok: false, error: `注入脚本失败：${m}` };
   }
   await new Promise((r) => setTimeout(r, 200));
@@ -139,6 +148,7 @@ async function testApiConnection() {
     await chrome.storage.local.get(PageTranslatorCore.DEFAULT_SETTINGS)
   );
   if (!s.apiKey) throw new Error("请先在设置页保存 API Key。");
+  const endpoint = PageTranslatorCore.getChatCompletionsUrl(s.apiBaseUrl);
 
   const baseTest = {
     model: s.model,
@@ -148,13 +158,13 @@ async function testApiConnection() {
   };
   Object.assign(baseTest, buildThinkingExtras(s.thinkingMode));
 
-  const r = await fetch(`${PageTranslatorCore.normalizeBaseUrl(s.apiBaseUrl)}/chat/completions`, {
+  const r = await fetchWithTimeout(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.apiKey}` },
     body: JSON.stringify(baseTest)
-  });
-  const data = await r.json();
-  if (!r.ok) throw new Error(data.error?.message || data.message || "API 连接失败。");
+  }, 45000);
+  const data = await readJsonSafely(r);
+  if (!r.ok) throw new Error(readApiError(data, "API 连接失败。"));
   const text = data.choices?.[0]?.message?.content || "";
   return { model: s.model, message: text || "连接成功。" };
 }
@@ -164,6 +174,7 @@ async function translateAll(message, port) {
     await chrome.storage.local.get(PageTranslatorCore.DEFAULT_SETTINGS)
   );
   if (!s.apiKey) throw new Error("缺少 API Key。");
+  const endpoint = PageTranslatorCore.getChatCompletionsUrl(s.apiBaseUrl);
 
   const segments = Array.isArray(message.segments) ? message.segments : [];
   if (!segments.length) {
@@ -189,16 +200,15 @@ async function translateAll(message, port) {
   };
   Object.assign(baseBody, buildThinkingExtras(s.thinkingMode));
 
-  const r = await fetch(`${PageTranslatorCore.normalizeBaseUrl(s.apiBaseUrl)}/chat/completions`, {
+  const r = await fetchWithTimeout(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.apiKey}` },
     body: JSON.stringify(baseBody)
-  });
+  }, 45000);
 
   if (!r.ok) {
-    let detail = "";
-    try { const b = await r.json(); detail = b.error?.message || ""; } catch (_) {}
-    throw new Error(`API ${r.status}: ${detail || "请求失败"}`);
+    const data = await readJsonSafely(r);
+    throw new Error(`API ${r.status}: ${readApiError(data, "请求失败")}`);
   }
 
   const ct = r.headers.get("content-type") || "";
@@ -207,6 +217,33 @@ async function translateAll(message, port) {
   } else {
     await handleJSONResponse(r, port, message.requestId);
   }
+}
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      throw new Error("API 请求超时，请检查网络、Base URL 或模型服务状态。");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function readJsonSafely(response) {
+  try {
+    return await response.json();
+  } catch (_) {
+    return {};
+  }
+}
+
+function readApiError(data, fallback) {
+  return data?.error?.message || data?.message || fallback;
 }
 
 async function handleJSONResponse(response, port, requestId) {
