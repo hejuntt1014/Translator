@@ -1,11 +1,17 @@
 const statusNode = document.getElementById("status");
 const translateButton = document.getElementById("translateButton");
 const targetLanguageSelect = document.getElementById("targetLanguage");
+const autoTranslateCheckbox = document.getElementById("autoTranslate");
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const s = await chrome.storage.local.get({ targetLanguage: "zh-CN", displayMode: "bilingual" });
+  const s = await chrome.storage.local.get({ targetLanguage: "zh-CN", displayMode: "bilingual", autoTranslate: false });
+  autoTranslateCheckbox.checked = s.autoTranslate;
   targetLanguageSelect.value = s.targetLanguage;
   await refreshState();
+});
+
+autoTranslateCheckbox.addEventListener("change", async () => {
+  await chrome.storage.local.set({ autoTranslate: autoTranslateCheckbox.checked });
 });
 
 translateButton.addEventListener("click", async () => {

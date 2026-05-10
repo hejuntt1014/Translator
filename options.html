@@ -91,6 +91,12 @@
         </label>
 
         <label class="field">
+          <span>最大并发请求数</span>
+          <input id="maxConcurrentRequests" type="number" min="1" step="1" placeholder="3">
+          <small>并行翻译批次数量，适当调高可大幅加快速度，但可能触发限流。</small>
+        </label>
+
+        <label class="field">
           <span>思考模式（DeepSeek 等）</span>
           <select id="thinkingMode">
             <option value="omit">不发送 thinking 字段（其他 API）</option>

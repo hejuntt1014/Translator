@@ -22,6 +22,8 @@
     segmentCharLimit: 5000,
     maxSegmentsPerRequest: 24,
     requestDelayMs: 100,
+    maxConcurrentRequests: 3,
+    autoTranslate: false,
     /** omit | enabled | disabled — DeepSeek v4 等非思考模式用 disabled */
     thinkingMode: "omit"
   };

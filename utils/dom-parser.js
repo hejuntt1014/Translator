@@ -71,6 +71,18 @@
       return true;
     }
 
+    if (element.closest("[translate='no'], .notranslate")) {
+      return true;
+    }
+
+    if (element.closest("[translate='no'], .notranslate")) {
+      return true;
+    }
+
+    if (element.closest("[translate='no'], .notranslate")) {
+      return true;
+    }
+
     const ariaHidden = element.getAttribute("aria-hidden");
     return ariaHidden === "true";
   }
@@ -185,43 +197,87 @@
     const scope = root || document.body;
     const seen = new Set();
     const collected = [];
-    const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        const text = (node.nodeValue || "").replace(/\s+/g, " ").trim();
-        if (!text) {
-          return NodeFilter.FILTER_REJECT;
+
+    function traverse(currentScope) {
+      const walker = document.createTreeWalker(currentScope, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          const text = (node.nodeValue || "").replace(/\s+/g, " ").trim();
+          if (!text) {
+            return NodeFilter.FILTER_REJECT;
+          }
+
+          const parent = node.parentElement;
+          if (!parent || isSkippableElement(parent)) {
+            return NodeFilter.FILTER_REJECT;
+          }
+
+          return NodeFilter.FILTER_ACCEPT;
         }
-
-        const parent = node.parentElement;
-        if (!parent || isSkippableElement(parent)) {
-          return NodeFilter.FILTER_REJECT;
-        }
-
-        return NodeFilter.FILTER_ACCEPT;
-      }
-    });
-
-    let textNode;
-    while ((textNode = walker.nextNode())) {
-      const container = getNearestCandidateContainer(textNode.parentElement, scope);
-      if (!container || seen.has(container) || !isElementVisible(container)) {
-        continue;
-      }
-
-      const contentData = collectTextFromContainer(container);
-      const text = contentData.text;
-      if (!text || text.length < 2 || looksLikeCodeHeavy(container, text)) {
-        continue;
-      }
-
-      seen.add(container);
-      collected.push({
-        id: createId(collected.length),
-        element: container,
-        text,
-        tagName: container.tagName.toLowerCase(),
-        inlineTokens: contentData.inlineTokens
       });
+
+      let textNode;
+      while ((textNode = walker.nextNode())) {
+        const container = getNearestCandidateContainer(textNode.parentElement, currentScope);
+        if (!container || seen.has(container) || !isElementVisible(container)) {
+          continue;
+        }
+
+        const contentData = collectTextFromContainer(container);
+        const text = contentData.text;
+        if (!text || text.length < 2 || looksLikeCodeHeavy(container, text)) {
+          continue;
+        }
+
+        seen.add(container);
+        collected.push({
+          id: createId(collected.length),
+          element: container,
+          text,
+          tagName: container.tagName.toLowerCase(),
+          inlineTokens: contentData.inlineTokens
+        });
+      }
+
+      const elements = currentScope.querySelectorAll ? currentScope.querySelectorAll('*') : [];
+      for (let i = 0; i < elements.length; i++) {
+        const el = elements[i];
+        if (el.shadowRoot) {
+          traverse(el.shadowRoot);
+        }
+
+        if (isSkippableElement(el)) continue;
+
+        ["placeholder", "alt", "title", "aria-label"].forEach(attrName => {
+          if (el.hasAttribute(attrName)) {
+            const val = el.getAttribute(attrName).trim();
+            if (val && val.length > 1 && !looksLikeCodeHeavy(el, val)) {
+              collected.push({
+                id: createId(collected.length),
+                element: el,
+                text: val,
+                tagName: el.tagName.toLowerCase(),
+                isAttribute: true,
+                attributeName: attrName
+              });
+            }
+          }
+        });
+      }
+    }
+
+    traverse(scope);
+
+    if (scope === document.body && document.title) {
+      const titleText = document.title.trim();
+      if (titleText && titleText.length > 1 && !looksLikeCodeHeavy(document.head, titleText)) {
+        collected.push({
+          id: createId(collected.length),
+          element: document.head,
+          text: titleText,
+          tagName: "title",
+          isTitle: true
+        });
+      }
     }
 
     return collected;

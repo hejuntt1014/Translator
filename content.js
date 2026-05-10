@@ -25,8 +25,23 @@
     controller: null,
     statusNode: null,
     progressNode: null,
-    isTranslating: false
+    isTranslating: false,
+    lastUrl: location.href,
+    observer: null,
+    observerTimer: null
   };
+
+  function checkAndTriggerAutoTranslate() {
+    chrome.storage.local.get(PageTranslatorCore.DEFAULT_SETTINGS).then(settings => {
+      if (settings.autoTranslate) {
+        setTimeout(() => translateCurrentPage({}, { persistOverrides: false }).catch(console.error), 200);
+      }
+    });
+  }
+
+  setupMutationObserver();
+  setupHoverObserver();
+  checkAndTriggerAutoTranslate();
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "TRANSLATE_PAGE") {
@@ -131,14 +146,7 @@
         settings.maxSegmentsPerRequest
       );
 
-      for (let index = 0; index < batches.length; index += 1) {
-        const batch = batches[index];
-        showStatus(`正在翻译第 ${index + 1}/${batches.length} 批（${batch.length} 段）`);
-        await sendForTranslation(batch, settings);
-        if (index < batches.length - 1 && settings.requestDelayMs > 0) {
-          await sleep(settings.requestDelayMs);
-        }
-      }
+      await processBatchesConcurrently(batches, settings);
 
       showStatus(`完成 ${state.translatedCount}/${state.totalCount}`);
     } catch (error) {
@@ -319,6 +327,29 @@
   function applyModeToBlock(block) {
     restoreBlock(block);
     if (!block.translationText) return;
+
+    if (block.isTitle) {
+      if (state.displayMode === "original") {
+        document.title = block.text;
+      } else if (state.displayMode === "translated") {
+        document.title = block.translationText;
+      } else {
+        document.title = `${block.translationText} - ${block.text}`;
+      }
+      return;
+    }
+
+    if (block.isAttribute) {
+      if (state.displayMode === "original") {
+        block.element.setAttribute(block.attributeName, block.text);
+      } else if (state.displayMode === "translated") {
+        block.element.setAttribute(block.attributeName, block.translationText);
+      } else {
+        block.element.setAttribute(block.attributeName, `${block.translationText} (${block.text})`);
+      }
+      return;
+    }
+
     getStrategy(state.renderMode).apply(block, state.displayMode, block.translationText);
   }
 
@@ -361,6 +392,15 @@
   }
 
   function restoreBlock(block) {
+    if (block.isTitle) {
+      document.title = block.text;
+      return;
+    }
+    if (block.isAttribute) {
+      block.element.setAttribute(block.attributeName, block.text);
+      return;
+    }
+
     const element = block.element;
     element.removeAttribute("data-pt-bi");
     element.removeAttribute("data-pt-original-hidden");
@@ -613,6 +653,7 @@
   function ensureController() {
     if (state.controller) {
       state.controller.removeAttribute("hidden");
+      if (state.hideTimer) clearTimeout(state.hideTimer);
       return;
     }
 
@@ -620,64 +661,30 @@
     wrapper.className = "page-translator-controls";
     wrapper.setAttribute("data-page-translator-controls", "");
 
-    const header = document.createElement("div");
-    header.className = "page-translator-controls__header";
-
-    const title = document.createElement("div");
-    title.className = "page-translator-controls__title";
-    title.textContent = "AI 翻译";
-
-    const closeButton = document.createElement("button");
-    closeButton.type = "button";
-    closeButton.className = "page-translator-controls__close";
-    closeButton.textContent = "\u2715";
-    closeButton.addEventListener("click", () => wrapper.setAttribute("hidden", ""));
-
-    header.append(title, closeButton);
-
     const status = document.createElement("div");
     status.className = "page-translator-controls__status";
 
-    const progress = document.createElement("div");
-    progress.className = "page-translator-controls__progress";
-
-    const actions = document.createElement("div");
-    actions.className = "page-translator-controls__actions";
-
-    [
-      ["original", "原文"],
-      ["bilingual", "双语"],
-      ["translated", "译文"]
-    ].forEach(([mode, label]) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.dataset.mode = mode;
-      button.textContent = label;
-      button.addEventListener("click", () => {
-        setDisplayMode(mode);
-      });
-      actions.appendChild(button);
-    });
-
-    wrapper.append(header, status, progress, actions);
+    wrapper.append(status);
     document.documentElement.appendChild(wrapper);
 
     state.controller = wrapper;
     state.statusNode = status;
-    state.progressNode = progress;
   }
 
   function updateController() {
-    if (!state.controller) return;
-    state.progressNode.textContent = `${state.translatedCount}/${state.totalCount}`;
-    state.controller.querySelectorAll("button[data-mode]").forEach((button) => {
-      button.toggleAttribute("data-active", button.dataset.mode === state.displayMode);
-    });
+    // No-op for Toast UI
   }
 
   function showStatus(text) {
     ensureController();
     state.statusNode.textContent = text;
+
+    if (state.hideTimer) clearTimeout(state.hideTimer);
+    if (text.includes("完成") || text.includes("失败")) {
+      state.hideTimer = setTimeout(() => {
+        if (state.controller) state.controller.setAttribute("hidden", "");
+      }, 3000);
+    }
   }
 
   function clearPreviousTranslation() {
@@ -687,5 +694,159 @@
     state.blockElements = new Set();
     state.translatedCount = 0;
     state.totalCount = 0;
+  }
+
+  async function processBatchesConcurrently(batches, settings) {
+    const concurrency = settings.maxConcurrentRequests || 3;
+    let completed = 0;
+    const executing = new Set();
+
+    for (let index = 0; index < batches.length; index += 1) {
+      if (document.hidden) {
+        await new Promise(resolve => {
+          const onVisible = () => {
+            if (!document.hidden) {
+              document.removeEventListener("visibilitychange", onVisible);
+              resolve();
+            }
+          };
+          document.addEventListener("visibilitychange", onVisible);
+          showStatus("已暂停 (后台)");
+        });
+      }
+
+      const batch = batches[index];
+      const p = Promise.resolve().then(async () => {
+        showStatus(`正在翻译... (${completed}/${batches.length})`);
+        await sendForTranslation(batch, settings);
+        if (settings.requestDelayMs > 0) {
+          await sleep(settings.requestDelayMs);
+        }
+        completed += 1;
+        showStatus(`正在翻译... (${completed}/${batches.length})`);
+      });
+      executing.add(p);
+      const clean = () => executing.delete(p);
+      p.then(clean).catch(clean);
+
+      if (executing.size >= concurrency) {
+        await Promise.race(executing);
+      }
+    }
+    await Promise.all(executing);
+  }
+
+  function setupMutationObserver() {
+    if (state.observer) return;
+
+    state.observer = new MutationObserver(() => {
+      if (state.lastUrl !== location.href) {
+        state.lastUrl = location.href;
+        clearPreviousTranslation();
+        if (state.controller) state.controller.setAttribute("hidden", "");
+        checkAndTriggerAutoTranslate();
+        return;
+      }
+
+      if (!state.isTranslating && state.blocks.length > 0 && state.displayMode !== "original") {
+        if (state.observerTimer) clearTimeout(state.observerTimer);
+        state.observerTimer = setTimeout(() => {
+          handleDynamicContent();
+        }, 800);
+      }
+    });
+
+    state.observer.observe(document.body, { 
+      childList: true, 
+      subtree: true, 
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["style", "class"]
+    });
+
+    window.addEventListener("popstate", () => {
+      if (state.lastUrl !== location.href) {
+        state.lastUrl = location.href;
+        clearPreviousTranslation();
+        if (state.controller) state.controller.setAttribute("hidden", "");
+        checkAndTriggerAutoTranslate();
+      }
+    });
+  }
+
+  function setupHoverObserver() {
+    document.addEventListener("mouseover", () => {
+      if (!state.isTranslating && state.blocks.length > 0 && state.displayMode !== "original") {
+        if (state.observerTimer) clearTimeout(state.observerTimer);
+        state.observerTimer = setTimeout(() => {
+          handleDynamicContent();
+        }, 400);
+      }
+    }, { passive: true });
+  }
+
+  function handleDynamicContent() {
+    if (state.isTranslating) return;
+    
+    const newBlocks = PageTranslatorDOMParser.collectTranslatableBlocks(document.body)
+      .filter(b => !state.blockElements.has(b.element));
+      
+    if (!newBlocks.length) return;
+
+    newBlocks.forEach(block => {
+      block.originalHTML = block.element.innerHTML;
+      block.translationText = "";
+      block.cacheKey = "";
+      block._replaced = false;
+      block._insertedNode = null;
+      block._textNodeSnapshot = null;
+      block._appendedTranslationNode = null;
+      block._hiddenElements = null;
+      
+      state.blocks.push(block);
+      state.blockMap.set(block.id, block);
+      state.blockElements.add(block.element);
+    });
+
+    state.totalCount = state.blocks.length;
+    updateController();
+
+    chrome.storage.local.get(PageTranslatorCore.DEFAULT_SETTINGS).then(stored => {
+      const settings = PageTranslatorCore.mergeSettings(stored);
+      if (!settings.apiKey) return;
+      
+      state.isTranslating = true;
+      updateController();
+      
+      hydrateFromCache(newBlocks, settings).then(async uncached => {
+        if (!uncached.length) {
+          state.isTranslating = false;
+          showStatus(`完成 ${state.translatedCount}/${state.totalCount}`);
+          updateController();
+          return;
+        }
+
+        const batches = PageTranslatorCore.buildSegmentBatches(
+          uncached,
+          settings.segmentCharLimit,
+          settings.maxSegmentsPerRequest
+        );
+
+        try {
+          await processBatchesConcurrently(batches, settings);
+        } catch (err) {
+          console.error(err);
+          showStatus(`失败：${err.message}`);
+        } finally {
+          state.isTranslating = false;
+          showStatus(`完成 ${state.translatedCount}/${state.totalCount}`);
+          updateController();
+        }
+      }).catch(err => {
+        console.error(err);
+        state.isTranslating = false;
+        updateController();
+      });
+    });
   }
 })();

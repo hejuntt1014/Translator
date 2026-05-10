@@ -9,6 +9,7 @@ const fields = {
   segmentCharLimit: document.getElementById("segmentCharLimit"),
   maxSegmentsPerRequest: document.getElementById("maxSegmentsPerRequest"),
   requestDelayMs: document.getElementById("requestDelayMs"),
+  maxConcurrentRequests: document.getElementById("maxConcurrentRequests"),
   thinkingMode: document.getElementById("thinkingMode")
 };
 
@@ -57,6 +58,7 @@ async function loadSettings() {
   fields.segmentCharLimit.value = s.segmentCharLimit;
   fields.maxSegmentsPerRequest.value = s.maxSegmentsPerRequest;
   fields.requestDelayMs.value = s.requestDelayMs;
+  fields.maxConcurrentRequests.value = s.maxConcurrentRequests;
   fields.thinkingMode.value = s.thinkingMode || "omit";
 }
 
@@ -78,6 +80,7 @@ function readForm() {
     segmentCharLimit: Math.max(500, Number(fields.segmentCharLimit.value) || 5000),
     maxSegmentsPerRequest: Math.max(1, Number(fields.maxSegmentsPerRequest.value) || 24),
     requestDelayMs: Math.max(0, Number(fields.requestDelayMs.value) || 0),
+    maxConcurrentRequests: Math.max(1, Number(fields.maxConcurrentRequests.value) || 3),
     thinkingMode: fields.thinkingMode.value
   };
 }

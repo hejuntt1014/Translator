@@ -61,7 +61,7 @@ chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "page-translate") return;
   port.onMessage.addListener((message) => {
     if (message.type === "translate-all") {
-      translateAll(message, port).catch((error) => {
+      translateAllWithRetry(message, port).catch((error) => {
         safePortPost(port, {
           type: "translate-error",
           requestId: message.requestId,
@@ -71,6 +71,35 @@ chrome.runtime.onConnect.addListener((port) => {
     }
   });
 });
+
+
+async function translateAllWithRetry(message, port, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await translateAll(message, port);
+      return;
+    } catch (error) {
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      const msg = String(error.message || "").toLowerCase();
+      const shouldRetry = msg.includes("api 429") || 
+                          msg.includes("api 5") || 
+                          msg.includes("超时") || 
+                          msg.includes("中断") || 
+                          msg.includes("fetch");
+                          
+      if (!shouldRetry) {
+        throw error;
+      }
+      
+      const delay = Math.pow(2, attempt - 1) * 1500;
+      console.warn(`[Translator] 请求失败，${delay}ms 后重试... (Attempt ${attempt}/${maxRetries})`, error);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
 
 function safePortPost(port, msg) {
   try { port.postMessage(msg); } catch (_) {}
